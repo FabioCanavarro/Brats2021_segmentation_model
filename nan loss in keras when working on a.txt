@@ -1,0 +1,281 @@
+nan loss in keras when working on a semantic segmentation model to segment brain tumor brats 2021 task 1
+
+The loss of my model for 50 epoch is Nan and the accuracy is too
+
+
+
+code:
+preprocessing and model structuring
+```
+import tensorflow.keras as kr
+import numpy as np
+import matplotlib.pylab as plt
+#load data
+inputimg = np.load('input_dataset.npy')
+outputimg = np.load('output_dataset.npy')
+
+inputimg = np.array(inputimg, dtype=np.float32)
+outputimg = np.array(outputimg, dtype=np.float32)
+outputimg = np.expand_dims(outputimg, axis=3)
+
+x_train = inputimg[:1126].copy()
+y_train = outputimg[:1126].copy()
+x_train.shape[0] == y_train.shape[0]
+x_eval = inputimg[1126:1189].copy()
+y_eval = outputimg[1126:1189].copy()
+x_test = inputimg[1189:].copy()
+y_test = outputimg[1189:].copy()
+
+print("train target:",y_train.shape,"                test target:",y_test.shape)
+print(f"train x{x_test.shape}","                test x:", x_test.shape)
+
+#shuffle data
+np.random.seed(0)
+np.random.shuffle(x_train)
+np.random.shuffle(y_train)
+np.random.shuffle(x_eval)
+np.random.shuffle(y_eval)
+
+np.random.shuffle(x_test)
+np.random.shuffle(y_test)
+
+
+
+from tensorflow.keras import layers
+inputs = kr.Input((240,240,4))
+x = layers.Conv2D(64, 3, strides=2, activation="relu", padding="same")(inputs)
+x = layers.Conv2D(64, 3, activation="relu", padding="same")(x)
+x = layers.Conv2D(128, 3, strides=2, activation="relu", padding="same")(x)
+x = layers.Conv2D(128, 3, activation="relu", padding="same")(x)
+x = layers.Conv2D(256, 3, strides=2, padding="same", activation="relu")(x)
+x = layers.Conv2D(256, 3, activation="relu", padding="same")(x)
+
+x = layers.Conv2DTranspose(256, 3, activation="relu", padding="same")(x)
+x = layers.Conv2DTranspose(256, 3, activation="relu", padding="same", strides=2)(x)
+x = layers.Conv2DTranspose(128, 3, activation="relu", padding="same")(x)
+x = layers.Conv2DTranspose(128, 3, activation="relu", padding="same", strides=2)(x)
+x = layers.Conv2DTranspose(64, 3, activation="relu", padding="same")(x)
+x = layers.Conv2DTranspose(64, 3, activation="relu", padding="same", strides=2)(x)
+
+outputs = layers.Conv2D(4, 3, activation="softmax", padding="same")(x)
+model = kr.Model(inputs,outputs)
+model.summary()
+
+#the BRATS 2021 task 1 brain tumour segmentation dataset
+#https://www.kaggle.com/datasets/dschettler8845/brats-2021-task1/code?datasetId=1541666&sortBy=voteCount
+```
+output of the above
+
+```
+train target: (1126, 240, 240, 1)                 test target: (62, 240, 240, 1)
+train x(62, 240, 240, 4)                  test x: (62, 240, 240, 4)
+Model: "functional_3"
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┓
+┃ Layer (type)                    ┃ Output Shape           ┃       Param # ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━┩
+│ input_layer_1 (InputLayer)      │ (None, 240, 240, 4)    │             0 │
+├─────────────────────────────────┼────────────────────────┼───────────────┤
+│ conv2d_7 (Conv2D)               │ (None, 120, 120, 64)   │         2,368 │
+├─────────────────────────────────┼────────────────────────┼───────────────┤
+│ conv2d_8 (Conv2D)               │ (None, 120, 120, 64)   │        36,928 │
+├─────────────────────────────────┼────────────────────────┼───────────────┤
+│ conv2d_9 (Conv2D)               │ (None, 60, 60, 128)    │        73,856 │
+├─────────────────────────────────┼────────────────────────┼───────────────┤
+│ conv2d_10 (Conv2D)              │ (None, 60, 60, 128)    │       147,584 │
+├─────────────────────────────────┼────────────────────────┼───────────────┤
+│ conv2d_11 (Conv2D)              │ (None, 30, 30, 256)    │       295,168 │
+├─────────────────────────────────┼────────────────────────┼───────────────┤
+│ conv2d_12 (Conv2D)              │ (None, 30, 30, 256)    │       590,080 │
+├─────────────────────────────────┼────────────────────────┼───────────────┤
+│ conv2d_transpose_6              │ (None, 30, 30, 256)    │       590,080 │
+│ (Conv2DTranspose)               │                        │               │
+├─────────────────────────────────┼────────────────────────┼───────────────┤
+│ conv2d_transpose_7              │ (None, 60, 60, 256)    │       590,080 │
+│ (Conv2DTranspose)               │                        │               │
+├─────────────────────────────────┼────────────────────────┼───────────────┤
+│ conv2d_transpose_8              │ (None, 60, 60, 128)    │       295,040 │
+│ (Conv2DTranspose)               │                        │               │
+├─────────────────────────────────┼────────────────────────┼───────────────┤
+│ conv2d_transpose_9              │ (None, 120, 120, 128)  │       147,584 │
+│ (Conv2DTranspose)               │                        │               │
+├─────────────────────────────────┼────────────────────────┼───────────────┤
+│ conv2d_transpose_10             │ (None, 120, 120, 64)   │        73,792 │
+│ (Conv2DTranspose)               │                        │               │
+├─────────────────────────────────┼────────────────────────┼───────────────┤
+│ conv2d_transpose_11             │ (None, 240, 240, 64)   │        36,928 │
+│ (Conv2DTranspose)               │                        │               │
+├─────────────────────────────────┼────────────────────────┼───────────────┤
+│ conv2d_13 (Conv2D)              │ (None, 240, 240, 4)    │         2,308 │
+└─────────────────────────────────┴────────────────────────┴───────────────┘
+ Total params: 2,881,796 (10.99 MB)
+ Trainable params: 2,881,796 (10.99 MB)
+ Non-trainable params: 0 (0.00 B)
+```
+
+
+
+
+
+
+
+
+when compiling and training:
+
+```
+model.compile(optimizer="Adam", loss="sparse_categorical_crossentropy")
+
+callbacks = [
+    kr.callbacks.ModelCheckpoint("help.keras",
+                                    save_best_only=True)
+]
+
+history = model.fit(inputimg,outputimg,
+                    epochs=50,
+                    callbacks=callbacks,)
+```
+
+output of compiling and training
+```
+Epoch 1/50
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1719246111.166733  116651 service.cc:145] XLA service 0x7f4470003550 initialized for platform CUDA (this does not guarantee that XLA will be used). Devices:
+I0000 00:00:1719246111.169110  116651 service.cc:153]   StreamExecutor device (0): NVIDIA GeForce RTX 4060 Laptop GPU, Compute Capability 8.9
+2024-06-24 23:21:51.376397: I tensorflow/compiler/mlir/tensorflow/utils/dump_mlir_util.cc:268] disabling MLIR crash reproducer, set env var `MLIR_CRASH_REPRODUCER_DIRECTORY` to enable.
+W0000 00:00:1719246111.595718  116651 assert_op.cc:38] Ignoring Assert operator compile_loss/sparse_categorical_crossentropy/SparseSoftmaxCrossEntropyWithLogits/assert_equal_1/Assert/Assert
+2024-06-24 23:21:51.959587: I external/local_xla/xla/stream_executor/cuda/cuda_dnn.cc:465] Loaded cuDNN version 8907
+2024-06-24 23:22:05.935224: E external/local_xla/xla/service/slow_operation_alarm.cc:65] Trying algorithm eng0{} for conv (f32[32,128,121,121]{3,2,1,0}, u8[0]{0}) custom-call(f32[32,128,60,60]{3,2,1,0}, f32[128,128,3,3]{3,2,1,0}), window={size=3x3 stride=2x2}, dim_labels=bf01_oi01->bf01, custom_call_target="__cudnn$convBackwardInput", backend_config={"operation_queue_id":"0","wait_on_operation_queues":[],"cudnn_conv_backend_config":{"conv_result_scale":1,"activation_mode":"kNone","side_input_scale":0,"leakyrelu_alpha":0}} is taking a while...
+2024-06-24 23:22:06.654590: E external/local_xla/xla/service/slow_operation_alarm.cc:133] The operation took 1.718804966s
+Trying algorithm eng0{} for conv (f32[32,128,121,121]{3,2,1,0}, u8[0]{0}) custom-call(f32[32,128,60,60]{3,2,1,0}, f32[128,128,3,3]{3,2,1,0}), window={size=3x3 stride=2x2}, dim_labels=bf01_oi01->bf01, custom_call_target="__cudnn$convBackwardInput", backend_config={"operation_queue_id":"0","wait_on_operation_queues":[],"cudnn_conv_backend_config":{"conv_result_scale":1,"activation_mode":"kNone","side_input_scale":0,"leakyrelu_alpha":0}} is taking a while...
+2024-06-24 23:22:12.322431: E external/local_xla/xla/service/slow_operation_alarm.cc:65] Trying algorithm eng0{} for conv (f32[32,64,241,241]{3,2,1,0}, u8[0]{0}) custom-call(f32[32,64,120,120]{3,2,1,0}, f32[64,64,3,3]{3,2,1,0}), window={size=3x3 stride=2x2}, dim_labels=bf01_oi01->bf01, custom_call_target="__cudnn$convBackwardInput", backend_config={"operation_queue_id":"0","wait_on_operation_queues":[],"cudnn_conv_backend_config":{"conv_result_scale":1,"activation_mode":"kNone","side_input_scale":0,"leakyrelu_alpha":0}} is taking a while...
+2024-06-24 23:22:12.953718: E external/local_xla/xla/service/slow_operation_alarm.cc:133] The operation took 1.631474573s
+Trying algorithm eng0{} for conv (f32[32,64,241,241]{3,2,1,0}, u8[0]{0}) custom-call(f32[32,64,120,120]{3,2,1,0}, f32[64,64,3,3]{3,2,1,0}), window={size=3x3 stride=2x2}, dim_labels=bf01_oi01->bf01, custom_call_target="__cudnn$convBackwardInput", backend_config={"operation_queue_id":"0","wait_on_operation_queues":[],"cudnn_conv_backend_config":{"conv_result_scale":1,"activation_mode":"kNone","side_input_scale":0,"leakyrelu_alpha":0}} is taking a while...
+2024-06-24 23:22:33.411114: E external/local_xla/xla/service/slow_operation_alarm.cc:65] Trying algorithm eng0{} for conv (f32[32,256,60,60]{3,2,1,0}, u8[0]{0}) custom-call(f32[32,128,60,60]{3,2,1,0}, f32[256,128,3,3]{3,2,1,0}), window={size=3x3 pad=1_1x1_1}, dim_labels=bf01_oi01->bf01, custom_call_target="__cudnn$convForward", backend_config={"operation_queue_id":"0","wait_on_operation_queues":[],"cudnn_conv_backend_config":{"conv_result_scale":1,"activation_mode":"kNone","side_input_scale":0,"leakyrelu_alpha":0}} is taking a while...
+2024-06-24 23:22:34.596435: E external/local_xla/xla/service/slow_operation_alarm.cc:133] The operation took 2.184202328s
+Trying algorithm eng0{} for conv (f32[32,256,60,60]{3,2,1,0}, u8[0]{0}) custom-call(f32[32,128,60,60]{3,2,1,0}, f32[256,128,3,3]{3,2,1,0}), window={size=3x3 pad=1_1x1_1}, dim_labels=bf01_oi01->bf01, custom_call_target="__cudnn$convForward", backend_config={"operation_queue_id":"0","wait_on_operation_queues":[],"cudnn_conv_backend_config":{"conv_result_scale":1,"activation_mode":"kNone","side_input_scale":0,"leakyrelu_alpha":0}} is taking a while...
+I0000 00:00:1719246187.497218  116651 device_compiler.h:188] Compiled cluster using XLA!  This line is logged at most once for the lifetime of the process.
+39/40 ━━━━━━━━━━━━━━━━━━━━ 0s 370ms/step - loss: nan
+W0000 00:00:1719246202.227021  116653 assert_op.cc:38] Ignoring Assert operator compile_loss/sparse_categorical_crossentropy/SparseSoftmaxCrossEntropyWithLogits/assert_equal_1/Assert/Assert
+40/40 ━━━━━━━━━━━━━━━━━━━━ 114s 717ms/step - loss: nan
+Epoch 2/50
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1719246215.883065  116653 asm_compiler.cc:369] ptxas warning : Registers are spilled to local memory in function 'input_reduce_select_fusion_7', 188 bytes spill stores, 188 bytes spill loads
+ptxas warning : Registers are spilled to local memory in function 'input_compare_reduce_fusion_1', 228 bytes spill stores, 228 bytes spill loads
+ptxas warning : Registers are spilled to local memory in function 'input_reduce_select_fusion_9', 200 bytes spill stores, 200 bytes spill loads
+
+/home/red/.pyenv/versions/3.11.4/lib/python3.11/site-packages/keras/src/callbacks/model_checkpoint.py:206: UserWarning: Can save best model only with val_loss available, skipping.
+  self._save_model(epoch=epoch, batch=None, logs=logs)
+40/40 ━━━━━━━━━━━━━━━━━━━━ 14s 342ms/step - loss: nan
+Epoch 3/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 14s 359ms/step - loss: nan
+Epoch 4/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 15s 368ms/step - loss: nan
+Epoch 5/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 15s 361ms/step - loss: nan
+Epoch 6/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 15s 361ms/step - loss: nan
+Epoch 7/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 14s 358ms/step - loss: nan
+Epoch 8/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 15s 362ms/step - loss: nan
+Epoch 9/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 15s 378ms/step - loss: nan
+Epoch 10/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 16s 390ms/step - loss: nan
+Epoch 11/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 16s 397ms/step - loss: nan
+Epoch 12/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 15s 361ms/step - loss: nan
+Epoch 13/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 15s 365ms/step - loss: nan
+Epoch 14/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 14s 359ms/step - loss: nan
+Epoch 15/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 14s 348ms/step - loss: nan
+Epoch 16/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 14s 355ms/step - loss: nan
+Epoch 17/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 14s 355ms/step - loss: nan
+Epoch 18/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 15s 372ms/step - loss: nan
+Epoch 19/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 15s 362ms/step - loss: nan
+Epoch 20/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 14s 344ms/step - loss: nan
+Epoch 21/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 14s 339ms/step - loss: nan
+Epoch 22/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 14s 343ms/step - loss: nan
+Epoch 23/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 14s 341ms/step - loss: nan
+Epoch 24/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 16s 391ms/step - loss: nan
+Epoch 25/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 15s 376ms/step - loss: nan
+Epoch 26/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 16s 392ms/step - loss: nan
+Epoch 27/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 14s 360ms/step - loss: nan
+Epoch 28/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 15s 378ms/step - loss: nan
+Epoch 29/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 13s 332ms/step - loss: nan
+Epoch 30/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 14s 355ms/step - loss: nan
+Epoch 31/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 15s 381ms/step - loss: nan
+Epoch 32/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 17s 423ms/step - loss: nan
+Epoch 33/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 19s 485ms/step - loss: nan
+Epoch 34/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 19s 456ms/step - loss: nan
+Epoch 35/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 14s 353ms/step - loss: nan
+Epoch 36/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 25s 603ms/step - loss: nan
+Epoch 37/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 15s 368ms/step - loss: nan
+Epoch 38/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 22s 536ms/step - loss: nan
+Epoch 39/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 15s 382ms/step - loss: nan
+Epoch 40/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 21s 509ms/step - loss: nan
+Epoch 41/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 8s 201ms/step - loss: nan
+Epoch 42/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 8s 195ms/step - loss: nan
+Epoch 43/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 8s 194ms/step - loss: nan
+Epoch 44/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 18s 453ms/step - loss: nan
+Epoch 45/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 1:00 8s/step - loss: nan
+Epoch 46/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 1:00 195ms/step - loss: nan
+Epoch 47/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 1:00 332ms/step - loss: nan
+Epoch 48/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 1:00 529ms/step - loss: nan
+Epoch 49/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 1:00 402ms/step - loss: nan
+Epoch 50/50
+40/40 ━━━━━━━━━━━━━━━━━━━━ 1:00 10s/step - loss: nan
+
+```
+
+The below shows a blank image when runned
+```
+y = inputimg[1]
+y = y.reshape(-1, 240, 240, 4)
+l = model.predict(y)
+mask = np.argmax(l, axis=0)
+mask *= 127
+plt.axis("off")
+plt.imshow(mask)
+```
+
+
+
+
+
